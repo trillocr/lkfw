@@ -200,7 +200,11 @@ void on_connect(struct mosquitto *mosq, void *obj, int rc)
 }
 
 void on_message(struct mosquitto *mosq, void *obj, const struct mosquitto_message *msg) {
-	printf("New message with topic %s: %s\n", msg->topic, (char *) msg->payload);
+
+	time_t ltime;
+        ltime = time(NULL);
+
+	printf("COMMAND:OPEN - LOCKER: %s - %s", (char *) msg->payload, asctime(localtime(&ltime)));
 	strcpy(cmd, (char *) msg->payload);
 }
 
