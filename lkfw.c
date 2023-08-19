@@ -1,15 +1,15 @@
-#include <signal.h>
-#include <stdio.h>
-#include <string.h>
-#include <errno.h>
-#include <fcntl.h> 
-#include <stdlib.h>
-#include <termios.h>
-#include <unistd.h>
-#include <stdint.h>
-#include <sys/time.h>
-#include <mosquitto.h>
-#include <time.h>
+#include 	<signal.h>
+#include 	<stdio.h>
+#include 	<string.h>
+#include 	<errno.h>
+#include 	<fcntl.h> 
+#include 	<stdlib.h>
+#include 	<termios.h>
+#include 	<unistd.h>
+#include 	<stdint.h>
+#include 	<sys/time.h>
+#include 	<mosquitto.h>
+#include 	<time.h>
 
 /* CU16 related macros */
 #define 	CMD_LEN 	5
@@ -21,11 +21,11 @@
 
 /* Sequence to open the lockers based on address */
 uint8_t cmd_one [CMD_LEN] =  { 
-	0x02, /* Fixed value 0x02 */ 
-	0x00, /* Locker address 0x00 == #1 */
-	0x31, /* Command to open or query */
-	0x03, /* Fixed value 0x03 */
-	0x00  /* Checksum (low byte) for the values above */
+		0x02, /* Fixed value 0x02 */ 
+		0x00, /* Locker address 0x00 == #1 */
+		0x31, /* Command to open or query */
+		0x03, /* Fixed value 0x03 */
+		0x00  /* Checksum (low byte) for the values above */
 	};
 
 /* Sequence to query all lockers status */
@@ -43,35 +43,35 @@ uint8_t finalize = 0;
 /* Configure serial port */
 int set_serial(int fd, int speed) 
 {
-    struct termios tty;	
+   	struct termios tty;	
 	
 
-    cfsetospeed(&tty, (speed_t)speed);
-    cfsetispeed(&tty, (speed_t)speed);
+    	cfsetospeed(&tty, (speed_t)speed);
+    	cfsetispeed(&tty, (speed_t)speed);
 
-    tty.c_cflag |= (CLOCAL | CREAD);    /* ignore modem controls */
-    tty.c_cflag &= ~CSIZE;
-    tty.c_cflag |= CS8;         /* 8-bit characters */
-    tty.c_cflag &= ~PARENB;     /* no parity bit */
-    tty.c_cflag &= ~CSTOPB;     /* only need 1 stop bit */
-    tty.c_cflag &= ~CRTSCTS;    /* no hardware flowcontrol */
+    	tty.c_cflag |= (CLOCAL | CREAD);    /* ignore modem controls */
+    	tty.c_cflag &= ~CSIZE;
+    	tty.c_cflag |= CS8;         /* 8-bit characters */
+    	tty.c_cflag &= ~PARENB;     /* no parity bit */
+    	tty.c_cflag &= ~CSTOPB;     /* only need 1 stop bit */
+    	tty.c_cflag &= ~CRTSCTS;    /* no hardware flowcontrol */
 
-    /* setup for non-canonical mode */
-    tty.c_iflag &= ~(IGNBRK | BRKINT | PARMRK | ISTRIP | INLCR 
+    	/* setup for non-canonical mode */
+    	tty.c_iflag &= ~(IGNBRK | BRKINT | PARMRK | ISTRIP | INLCR 
 					| IGNCR | ICRNL | IXON);
-    tty.c_lflag &= ~(ECHO | ECHONL | ICANON | ISIG | IEXTEN);
-    tty.c_oflag &= ~OPOST;
+    	tty.c_lflag &= ~(ECHO | ECHONL | ICANON | ISIG | IEXTEN);
+    	tty.c_oflag &= ~OPOST;
 
-    /* fetch bytes as they become available */
-    tty.c_cc[VMIN] = 1;
-    tty.c_cc[VTIME] = 1;
+    	/* fetch bytes as they become available */
+    	tty.c_cc[VMIN] = 1;
+    	tty.c_cc[VTIME] = 1;
 
-    if (tcsetattr(fd, TCSANOW, &tty) != 0) {
-        printf("Error from tcsetattr: %s\n", strerror(errno));
-        return -1;
-    }
+    	if (tcsetattr(fd, TCSANOW, &tty) != 0) {
+        	printf("Error from tcsetattr: %s\n", strerror(errno));
+        	return -1;
+    	}	
     
-    return 0;
+    	return 0;
 }
 
 /* Open all lockers sequentially */
@@ -80,9 +80,9 @@ void open_all(int fd)
 	int wlen;
 	
 	wlen = write(fd, oall, CMD_LEN);
-    if (wlen != CMD_LEN) {
-        printf("Error from open_all: %d, %d\n", CMD_LEN, errno);
-    }
+    	if (wlen != CMD_LEN) {
+        	printf("Error from open_all: %d, %d\n", CMD_LEN, errno);
+    	}
 }
 
 /* Open one locker by his number */
@@ -98,9 +98,9 @@ void open_one(int fd, uint8_t number)
 	cmd_one[4] = (uint8_t) checksum & 0xFF; // Get the lower byte
 	
 	wlen = write(fd, cmd_one, CMD_LEN);
-    if (wlen != CMD_LEN) {
-        printf("Error from open_one: %d, %d\n", CMD_LEN, errno);
-    }
+    	if (wlen != CMD_LEN) {
+        	printf("Error from open_one: %d, %d\n", CMD_LEN, errno);
+    	}
 }
 
 /* 
@@ -115,18 +115,18 @@ uint32_t query_all(int fd)
 	uint32_t status = 0;
 	
 	wlen = write(fd, query, CMD_LEN);
-    if (wlen != CMD_LEN) {
-        printf("Error from query_all: %d, %d\n", CMD_LEN, errno);
-    }
+    	if (wlen != CMD_LEN) {
+        	printf("Error from query_all: %d, %d\n", CMD_LEN, errno);
+    	}	
     
 	rdlen = read(fd, response, RES_LEN);
 	if (rdlen <= 0) { 
 		printf("Error from query_read: %d: %s\n", rdlen, strerror(errno));
 	} else {
 		status = response[6] | 
-				(response[5] << 8) | 
-				(response[4] << 16) |
-				(response[3] << 24);
+			(response[5] << 8) | 
+			(response[4] << 16) |
+			(response[3] << 24);
 	}
 		
 	return status;
@@ -149,7 +149,7 @@ uint32_t query_all(int fd)
  * This function write the result in a global array
  * called "ocp";
  */
-char ocp[100] = "";
+char 	ocp[100] = "";
 void oc_payload(char *id, uint32_t status)
 {
 	
@@ -166,10 +166,10 @@ void oc_payload(char *id, uint32_t status)
 	ltime = time(NULL);
 	
 	strcpy(ocp,asctime(localtime(&ltime)));
-    ocp[strlen(ocp)-1] = ',';
-    strcat(ocp,id);
+    	ocp[strlen(ocp)-1] = ',';
+    	strcat(ocp,id);
     
-    int i;
+    	int i;
 	
 	for (i = 1; i < 0x100; i <<= 1) {
 		strcat(ocp,",");
@@ -186,9 +186,9 @@ void oc_payload(char *id, uint32_t status)
 
 /* MQTT related stuff */
 
-char cmd[10] = " ";
-struct mosquitto *mosqg;
-struct mosquitto *mosqc;
+char 	cmd[10] = " ";
+struct 	mosquitto *mosqg;
+struct 	mosquitto *mosqc;
 
 void on_connect(struct mosquitto *mosq, void *obj, int rc) 
 {
@@ -211,22 +211,22 @@ void on_message(struct mosquitto *mosq, void *obj, const struct mosquitto_messag
 void check_status(int sn)
 {
 	int fd;
-    uint32_t status;
-    char *portname = "/dev/ttyUSB0";
+    	uint32_t status;
+    	char *portname = "/dev/ttyUSB0";
 	int open_to = 0;
 	
-    fd = open(portname, O_RDWR | O_NOCTTY | O_SYNC);
-    if (fd < 0) {
-        printf("Error opening %s: %s\n", portname, strerror(errno));
-        exit(-1);
-    }
+    	fd = open(portname, O_RDWR | O_NOCTTY | O_SYNC);
+    	if (fd < 0) {
+        	printf("Error opening %s: %s\n", portname, strerror(errno));
+        	exit(-1);
+    	}
     	
-    set_serial(fd, B19200);
-    status = query_all(fd);
-    oc_payload(LK_NAME, status);
+    	set_serial(fd, B19200);
+    	status = query_all(fd);
+    	oc_payload(LK_NAME, status);
     
      
-    mosquitto_publish(mosqg, NULL, "lkaas/status", sizeof(ocp), ocp, 0, false);
+    	mosquitto_publish(mosqg, NULL, "lkaas/status", sizeof(ocp), ocp, 0, false);
 	
 	if (!strcmp(cmd, "ALL")) 
 		open_all(fd);
@@ -236,9 +236,9 @@ void check_status(int sn)
 	}
 
 	strcpy(cmd, (char *) " ");
-    open_to = 0;
+    	open_to = 0;
 		
-    close(fd);
+    	close(fd);
 }
 
 /* Prepare a timer for status check with "interval" as periodic time */
@@ -265,7 +265,7 @@ void set_timer(uint8_t interval)
 }
 
 void ctrl_c(int sh) {
-    finalize = 1;
+    	finalize = 1;
 }
 
 int main()
@@ -293,15 +293,13 @@ int main()
 		printf("Could not connect to Broker with return code %d\n", rc);
 		return -1;
 	}    
- 
-    printf("OK\n");
     
-    mosquitto_loop_start(mosqc);
-    printf("Press Ctrl+C to quit...\n");
+	mosquitto_loop_start(mosqc);
+    	printf("Press Ctrl+C to quit...\n");
     
-    while (!finalize) {
+    	while (!finalize) {
 		__asm__("NOP");
-    }
+    	}
     
 	mosquitto_loop_stop(mosqc, true);
 	mosquitto_disconnect(mosqc);
