@@ -228,7 +228,6 @@ void check_status(int sn)
     	set_serial(fd, B19200);
     	status = query_all(fd);
     	oc_payload(LK_NAME, status);
-    
      
     	mosquitto_publish(mosqg, NULL, "lkaas/status", sizeof(ocp), ocp, 0, false);
 	
@@ -289,7 +288,6 @@ int main()
 	}
 	
 	mosqc = mosquitto_new("lkaas-cmd", true, &id1);
-	
 	mosquitto_connect_callback_set(mosqc, on_connect);
 	mosquitto_message_callback_set(mosqc, on_message);
 	rc1 = mosquitto_connect(mosqc, "localhost", 1883, 10);
