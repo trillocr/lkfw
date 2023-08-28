@@ -17,7 +17,13 @@
 #define 	OPEN_CMD 	0x31
 #define		QUERY_CMD	0x32
 #define		OPEN_ALL	0x33
-#define 	LK_NAME		"DUAL SERVICIOS"
+#define 	LK_NAME		"LKAAS_LOCKERS"
+
+/* MQTT related stuff */
+#define		BROKER_URL	"95efa85031e142e69db9bbb994342b28.s1.eu.hivemq.cloud"
+#define		BROKER_PORT	8883
+#define		BROKER_USER	"devopstrends"
+#define		BROKER_PASS	"C2g2d0s2012"
 
 /* Sequence to open the lockers based on address */
 uint8_t cmd_one [CMD_LEN] =  { 
