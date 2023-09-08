@@ -17,7 +17,16 @@
 #define 	OPEN_CMD 	0x31
 #define		QUERY_CMD	0x32
 #define		OPEN_ALL	0x33
-#define 	LK_NAME		"DUAL SERVICIOS"
+#define 	LK_NAME		"LKAAS_LOCKERS"
+
+/* MQTT related stuff */
+
+#define		BROKER_URL	"95efa85031e142e69db9bbb994342b28.s1.eu.hivemq.cloud"
+#define		BROKER_PORT	8883
+#define		BROKER_USER	"devopstrends"
+#define		BROKER_PASS	"C2g2d0s2012"
+#define		CA_CERT		"isrgrootx1.pem"
+#define		CA_PATH		"/home/user/lkfw/"
 
 /* Sequence to open the lockers based on address */
 uint8_t cmd_one [CMD_LEN] =  { 
@@ -142,14 +151,17 @@ uint32_t query_all(int fd)
  * 
  * The frame format is:
  * 
- * ID1234;001:Status;...;NNN:Status,Timestamp
+ * Timestamp,ID1234,Status001,...,StatusNNN
  * 
- * Where NNN is the max number of lockers
- * 
+ * Where: 
+ *
+ * - Status001 to StatusNNN is the locker's number
+ * - ID1234 is the locker wall id
+ *
  * This function write the result in a global array
  * called "ocp";
  */
-char 	ocp[100] = "";
+char 	ocp[86] = "";
 void oc_payload(char *id, uint32_t status)
 {
 	
@@ -188,7 +200,6 @@ void oc_payload(char *id, uint32_t status)
 
 char 	cmd[10] = " ";
 struct 	mosquitto *mosqg;
-struct 	mosquitto *mosqc;
 
 void on_connect(struct mosquitto *mosq, void *obj, int rc) 
 {
@@ -196,15 +207,19 @@ void on_connect(struct mosquitto *mosq, void *obj, int rc)
 		printf("Error with result code: %d\n", rc);
 		exit(-1);
 	}
-	mosquitto_subscribe(mosq, NULL, "lkaas/cmd", 0);
+	mosquitto_subscribe(mosq, NULL, "lkaas/cmd", 2);
 }
 
 void on_message(struct mosquitto *mosq, void *obj, const struct mosquitto_message *msg) {
 
 	time_t ltime;
         ltime = time(NULL);
+	char cmd_event[48] = "";
 
-	printf("COMMAND:OPEN - LOCKER: %s - %s", (char *) msg->payload, asctime(localtime(&ltime)));
+	sprintf(cmd_event, "COMMAND:OPEN,LOCKER:%s,%s", (char *) msg->payload, asctime(localtime(&ltime)));
+	cmd_event[strlen(cmd_event) - 1] = '\0';
+	mosquitto_publish(mosqg, NULL, "lkaas/events", sizeof(cmd_event), cmd_event, 2, false);
+
 	strcpy(cmd, (char *) msg->payload);
 }
 
@@ -229,7 +244,7 @@ void check_status(int sn)
     	status = query_all(fd);
     	oc_payload(LK_NAME, status);
      
-    	mosquitto_publish(mosqg, NULL, "lkaas/status", sizeof(ocp), ocp, 0, false);
+    	mosquitto_publish(mosqg, NULL, "lkaas/status", sizeof(ocp), ocp, 2, false);
 	
 	if (!strcmp(cmd, "ALL")) 
 		open_all(fd);
@@ -250,7 +265,7 @@ void set_timer(uint8_t interval)
 	struct sigaction sa;
 	struct itimerval timer;
 
-	/* Install periodic_task  as the signal handler for SIGVTALRM. */
+	/* Install check_status as the signal handler for SIGVTALRM. */
 	memset (&sa, 0, sizeof (sa));
 	sa.sa_handler = &check_status;
 	sigaction (SIGVTALRM, &sa, NULL);
@@ -273,7 +288,7 @@ void ctrl_c(int sh) {
 
 int main()
 { 
-	int rc, rc1, id=12, id1=11;
+	int rc, rc1, id=12;
 
 	set_timer(1);
 	signal(SIGINT, ctrl_c);
@@ -281,32 +296,38 @@ int main()
 	mosquitto_lib_init();
 
 	mosqg = mosquitto_new("lkaas-status", true, &id);
-	rc = mosquitto_connect(mosqg, "localhost", 1883, 10);
+	
+	mosquitto_username_pw_set(mosqg, BROKER_USER, BROKER_PASS);	
+	mosquitto_tls_set(mosqg, CA_CERT, CA_PATH, NULL, NULL, NULL);	
+
+	mosquitto_connect_callback_set(mosqg, on_connect);
+	mosquitto_message_callback_set(mosqg, on_message);
+
+	rc = mosquitto_connect(mosqg, BROKER_URL, BROKER_PORT, 60);
 	if(rc) {
 		printf("Could not connect to Broker with return code %d\n", rc);
 		return -1;
 	}
 	
-	mosqc = mosquitto_new("lkaas-cmd", true, &id1);
-	mosquitto_connect_callback_set(mosqc, on_connect);
-	mosquitto_message_callback_set(mosqc, on_message);
-	rc1 = mosquitto_connect(mosqc, "localhost", 1883, 10);
-	if(rc1) {
-		printf("Could not connect to Broker with return code %d\n", rc);
-		return -1;
-	}    
-    
-	mosquitto_loop_start(mosqc);
+	mosquitto_loop_start(mosqg);
     	printf("Press Ctrl+C to quit...\n");
-    
+   
+        FILE* pid;
+       
+	pid = fopen("/tmp/lkfw.pid", "w");
+
+	if (pid == NULL) {
+		printf("Can not create pid file");
+		return -5;
+	}
+
+	fprintf(pid, "%d\n", (int) getpid());
+	fclose(pid);
+
     	while (!finalize) {
 		__asm__("NOP");
     	}
-    
-	mosquitto_loop_stop(mosqc, true);
-	mosquitto_disconnect(mosqc);
-	mosquitto_destroy(mosqc);
-	
+
 	mosquitto_disconnect(mosqg);
 	mosquitto_destroy(mosqg);
 	mosquitto_lib_cleanup();	
