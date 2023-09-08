@@ -27,6 +27,7 @@
 #define		BROKER_PASS	"C2g2d0s2012"
 #define		CA_CERT		"isrgrootx1.pem"
 #define		CA_PATH		"/home/user/lkfw/"
+#define		KEEP_ALIVE	10
 
 /* Sequence to open the lockers based on address */
 uint8_t cmd_one [CMD_LEN] =  { 
@@ -303,7 +304,7 @@ int main()
 	mosquitto_connect_callback_set(mosqg, on_connect);
 	mosquitto_message_callback_set(mosqg, on_message);
 
-	rc = mosquitto_connect(mosqg, BROKER_URL, BROKER_PORT, 60);
+	rc = mosquitto_connect(mosqg, BROKER_URL, BROKER_PORT, KEEP_ALIVE);
 	if(rc) {
 		printf("Could not connect to Broker with return code %d\n", rc);
 		return -1;
