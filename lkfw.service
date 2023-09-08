@@ -1,0 +1,16 @@
+[Unit]
+Description=LKFW Service
+ 
+[Service]
+Type=simple
+User=root
+Group=root
+PIDFile=/tmp/lkfw.pid
+ExecStart=/home/user/lkfw/lkfw
+Restart=no
+WorkingDirectory=/home/user/lkfw
+Nice=19
+LimitNOFILE=16384
+ 
+[Install]
+WantedBy=multi-user.target
