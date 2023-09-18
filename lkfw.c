@@ -197,11 +197,13 @@ void oc_payload(char *id, uint32_t status)
 	}
 }
 
-/* MQTT related stuff */
+/* MQTT lambdas and serial port variables */
 
 char 	cmd[10] = " ";
 struct 	mosquitto *mosqg;
+int	gfd;
 
+/* Connect and subscribe */
 void on_connect(struct mosquitto *mosq, void *obj, int rc) 
 {
 	if(rc) {
@@ -211,76 +213,41 @@ void on_connect(struct mosquitto *mosq, void *obj, int rc)
 	mosquitto_subscribe(mosq, NULL, "lkaas/cmd", 2);
 }
 
+/* Reacts to a message, execute the command and publish the event */
 void on_message(struct mosquitto *mosq, void *obj, const struct mosquitto_message *msg) {
 
 	time_t ltime;
         ltime = time(NULL);
 	char cmd_event[48] = "";
+	int open_to = 0;
 
 	sprintf(cmd_event, "COMMAND:OPEN,LOCKER:%s,%s", (char *) msg->payload, asctime(localtime(&ltime)));
 	cmd_event[strlen(cmd_event) - 1] = '\0';
-	mosquitto_publish(mosqg, NULL, "lkaas/events", sizeof(cmd_event), cmd_event, 2, false);
 
 	strcpy(cmd, (char *) msg->payload);
+	
+	if (!strcmp(cmd, "ALL")) 
+		open_all(gfd);
+	else {
+		open_to = atoi((char *) cmd);
+		open_one(gfd, open_to);
+	}
+
+	mosquitto_publish(mosqg, NULL, "lkaas/events", sizeof(cmd_event), cmd_event, 2, false);
 }
 
 /* 
- Periodic task to check locker status and publish to MQTT Topic
- also check for available commands to execute in the CMD topic
+ Periodic task to check all locker status and publish to MQTT Topic
+ called via main while cycle 
 */
-void check_status(int sn)
+void check_status(int fd)
 {
-	int fd;
     	uint32_t status;
-    	char *portname = "/dev/ttyUSB0";
-	int open_to = 0;
 	
-    	fd = open(portname, O_RDWR | O_NOCTTY | O_SYNC);
-    	if (fd < 0) {
-        	printf("Error opening %s: %s\n", portname, strerror(errno));
-        	exit(-1);
-    	}
-    	
-    	set_serial(fd, B19200);
-    	status = query_all(fd);
+	status = query_all(fd);
     	oc_payload(LK_NAME, status);
      
-    	mosquitto_publish(mosqg, NULL, "lkaas/status", sizeof(ocp), ocp, 2, false);
-	
-	if (!strcmp(cmd, "ALL")) 
-		open_all(fd);
-	else {
-		open_to = atoi((char *) cmd);
-		open_one(fd, open_to);
-	}
-
-	strcpy(cmd, (char *) " ");
-    	open_to = 0;
-		
-    	close(fd);
-}
-
-/* Prepare a timer for status check with "interval" as periodic time */
-void set_timer(uint8_t interval)
-{
-	struct sigaction sa;
-	struct itimerval timer;
-
-	/* Install check_status as the signal handler for SIGVTALRM. */
-	memset (&sa, 0, sizeof (sa));
-	sa.sa_handler = &check_status;
-	sigaction (SIGVTALRM, &sa, NULL);
-
-	/* Configure the timer to expire after one second */
-	timer.it_value.tv_sec = interval;
-	timer.it_value.tv_usec = 0;
-
-	/* And every one second after that. */
-	timer.it_interval.tv_sec = interval;
-	timer.it_interval.tv_usec = 0;
-
-	/* Start a virtual timer. */
-	setitimer (ITIMER_VIRTUAL, &timer, NULL);
+    	mosquitto_publish(mosqg, NULL, "lkaas/status", sizeof(ocp), ocp, 2, false);	
 }
 
 void ctrl_c(int sh) {
@@ -289,11 +256,19 @@ void ctrl_c(int sh) {
 
 int main()
 { 
-	int rc, rc1, id=12;
-
-	set_timer(1);
-	signal(SIGINT, ctrl_c);
+	int rc, id=12;
+	char *portname = "/dev/ttyUSB0";
 	
+	signal(SIGINT, ctrl_c);
+
+	gfd = open(portname, O_RDWR | O_NOCTTY | O_SYNC);
+    	if (gfd < 0) {
+        	printf("Error opening %s: %s\n", portname, strerror(errno));
+        	exit(-1);
+    	}
+    	
+    	set_serial(gfd, B19200);
+		
 	mosquitto_lib_init();
 
 	mosqg = mosquitto_new("lkaas-status", true, &id);
@@ -310,6 +285,7 @@ int main()
 		return -1;
 	}
 	
+		
 	mosquitto_loop_start(mosqg);
     	printf("Press Ctrl+C to quit...\n");
    
@@ -324,12 +300,16 @@ int main()
 
 	fprintf(pid, "%d\n", (int) getpid());
 	fclose(pid);
-
+	
+	
     	while (!finalize) {
-		__asm__("NOP");
+		check_status(gfd);
+		sleep(1);
     	}
 
 	mosquitto_disconnect(mosqg);
 	mosquitto_destroy(mosqg);
-	mosquitto_lib_cleanup();	
+	mosquitto_lib_cleanup();
+	
+	close(gfd);	
 }
