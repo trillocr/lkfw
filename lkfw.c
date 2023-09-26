@@ -10,6 +10,7 @@
 #include 	<sys/time.h>
 #include 	<mosquitto.h>
 #include 	<time.h>
+#include	<confuse.h>
 
 /* CU16 related macros */
 #define 	CMD_LEN 	5
@@ -17,17 +18,33 @@
 #define 	OPEN_CMD 	0x31
 #define		QUERY_CMD	0x32
 #define		OPEN_ALL	0x33
-#define 	LK_NAME		"LKAAS_LOCKERS"
 
-/* MQTT related stuff */
+static char	*locker_name = NULL;
+static int	broker_port = 0;
+static char 	*broker_user = NULL;
+static char 	*broker_pass = NULL;
+static int	keep_alive = 0;
+static int	post_seconds = 0;
+static char	*broker_url = NULL;
+static char	*ca_cert = NULL;
+static char	*ca_path = NULL;
+static char	*serial_port = NULL;
+static char	*pid_file = NULL;
 
-#define		BROKER_URL	"95efa85031e142e69db9bbb994342b28.s1.eu.hivemq.cloud"
-#define		BROKER_PORT	8883
-#define		BROKER_USER	"devopstrends"
-#define		BROKER_PASS	"C2g2d0s2012"
-#define		CA_CERT		"isrgrootx1.pem"
-#define		CA_PATH		"/home/user/lkfw/"
-#define		KEEP_ALIVE	10
+cfg_opt_t opts[] = {
+	CFG_SIMPLE_STR("locker_name", &locker_name),
+	CFG_SIMPLE_INT("broker_port", (long int *) &broker_port),
+	CFG_SIMPLE_STR("broker_user", &broker_user),
+	CFG_SIMPLE_STR("broker_pass", &broker_pass),
+	CFG_SIMPLE_INT("keep_alive", (long int *) &keep_alive),
+	CFG_SIMPLE_INT("post_seconds", (long int *) &post_seconds),
+	CFG_SIMPLE_STR("broker_url", &broker_url),
+	CFG_SIMPLE_STR("ca_cert", &ca_cert),
+	CFG_SIMPLE_STR("ca_path", &ca_path),
+	CFG_SIMPLE_STR("serial_port", &serial_port),
+	CFG_SIMPLE_STR("pid_file", &pid_file),
+	CFG_END()
+};
 
 /* Sequence to open the lockers based on address */
 uint8_t cmd_one [CMD_LEN] =  { 
@@ -49,6 +66,11 @@ uint8_t response [RES_LEN] = {};
 
 /* Flag to finalize an clear all */
 uint8_t finalize = 0;
+
+/* MQTT global variables */
+char 	cmd[10] = " ";
+struct 	mosquitto *mosqg;
+int	gfd;
 
 /* Configure serial port */
 int set_serial(int fd, int speed) 
@@ -159,13 +181,16 @@ uint32_t query_all(int fd)
  * - Status001 to StatusNNN is the locker's number
  * - ID1234 is the locker wall id
  *
- * This function write the result in a global array
+ * This function write the result in a global string 
  * called "ocp";
  */
-char 	ocp[86] = "";
+char ocp[128] = " ";
+char st_topic[32] = "";
+char ev_topic[32] = ""; 
+char cmd_topic[32] = "";
+
 void oc_payload(char *id, uint32_t status)
 {
-	
 	uint16_t oc = status >> 16;
 	uint16_t ir = status & 0xFFFF;
 	
@@ -178,9 +203,9 @@ void oc_payload(char *id, uint32_t status)
 	time_t ltime;
 	ltime = time(NULL);
 	
-	strcpy(ocp,asctime(localtime(&ltime)));
-    	ocp[strlen(ocp)-1] = ',';
-    	strcat(ocp,id);
+	sprintf(ocp, "%s", asctime(localtime(&ltime)));
+    	ocp[strlen(ocp) - 1] = ',';
+    	strcat(ocp, id);
     
     	int i;
 	
@@ -195,13 +220,8 @@ void oc_payload(char *id, uint32_t status)
 		(ocb2 & i) ? strcat(ocp, "C") : strcat(ocp, "O");
 		(irb2 & i) ? strcat(ocp, "L") : strcat(ocp, "E");
 	}
+//	ocp[strlen(ocp)] = '\0';
 }
-
-/* MQTT lambdas and serial port variables */
-
-char 	cmd[10] = " ";
-struct 	mosquitto *mosqg;
-int	gfd;
 
 /* Connect and subscribe */
 void on_connect(struct mosquitto *mosq, void *obj, int rc) 
@@ -210,7 +230,7 @@ void on_connect(struct mosquitto *mosq, void *obj, int rc)
 		printf("Error with result code: %d\n", rc);
 		exit(-1);
 	}
-	mosquitto_subscribe(mosq, NULL, "lkaas/cmd", 2);
+	mosquitto_subscribe(mosq, NULL, cmd_topic, 2);
 }
 
 /* Reacts to a message, execute the command and publish the event */
@@ -233,7 +253,7 @@ void on_message(struct mosquitto *mosq, void *obj, const struct mosquitto_messag
 		open_one(gfd, open_to);
 	}
 
-	mosquitto_publish(mosqg, NULL, "lkaas/events", sizeof(cmd_event), cmd_event, 2, false);
+	mosquitto_publish(mosqg, NULL, ev_topic, sizeof(cmd_event), cmd_event, 2, false);
 }
 
 /* 
@@ -242,12 +262,12 @@ void on_message(struct mosquitto *mosq, void *obj, const struct mosquitto_messag
 */
 void check_status(int fd)
 {
-    	uint32_t status;
+	uint32_t status;
 	
 	status = query_all(fd);
-    	oc_payload(LK_NAME, status);
+	oc_payload(locker_name, status);
      
-    	mosquitto_publish(mosqg, NULL, "lkaas/status", sizeof(ocp), ocp, 2, false);	
+   	mosquitto_publish(mosqg, NULL, st_topic, sizeof(ocp), ocp, 2, false);	
 }
 
 void ctrl_c(int sh) {
@@ -257,13 +277,27 @@ void ctrl_c(int sh) {
 int main()
 { 
 	int rc, id=12;
-	char *portname = "/dev/ttyUSB0";
 	
+	cfg_t *cfg;
+	
+#ifdef LC_MESSAGES
+	setlocale(LC_MESSAGES, "");
+	setlocale(LC_CTYPE, "");
+#endif
+
+	cfg = cfg_init(opts, 0);
+	cfg_parse(cfg, "lkfw.conf");
+
+	sprintf(st_topic, "%s/status", locker_name);
+	sprintf(ev_topic, "%s/events", locker_name);
+	sprintf(cmd_topic, "%s/cmd", locker_name);
+
 	signal(SIGINT, ctrl_c);
 
-	gfd = open(portname, O_RDWR | O_NOCTTY | O_SYNC);
+
+	gfd = open(serial_port, O_RDWR | O_NOCTTY | O_SYNC);
     	if (gfd < 0) {
-        	printf("Error opening %s: %s\n", portname, strerror(errno));
+        	printf("Error opening %s: %s\n", serial_port, strerror(errno));
         	exit(-1);
     	}
     	
@@ -271,15 +305,15 @@ int main()
 		
 	mosquitto_lib_init();
 
-	mosqg = mosquitto_new("lkaas-status", true, &id);
+	mosqg = mosquitto_new("locker-status", true, &id);
 	
-	mosquitto_username_pw_set(mosqg, BROKER_USER, BROKER_PASS);	
-	mosquitto_tls_set(mosqg, CA_CERT, CA_PATH, NULL, NULL, NULL);	
+	mosquitto_username_pw_set(mosqg, broker_user, broker_pass);	
+	mosquitto_tls_set(mosqg, ca_cert, ca_path, NULL, NULL, NULL);	
 
 	mosquitto_connect_callback_set(mosqg, on_connect);
 	mosquitto_message_callback_set(mosqg, on_message);
 
-	rc = mosquitto_connect(mosqg, BROKER_URL, BROKER_PORT, KEEP_ALIVE);
+	rc = mosquitto_connect(mosqg, broker_url, broker_port, keep_alive);
 	if(rc) {
 		printf("Could not connect to Broker with return code %d\n", rc);
 		return -1;
@@ -291,7 +325,7 @@ int main()
    
         FILE* pid;
        
-	pid = fopen("/tmp/lkfw.pid", "w");
+	pid = fopen(pid_file, "w");
 
 	if (pid == NULL) {
 		printf("Can not create pid file");
@@ -300,11 +334,10 @@ int main()
 
 	fprintf(pid, "%d\n", (int) getpid());
 	fclose(pid);
-	
-	
-    	while (!finalize) {
+
+	while (!finalize) {
 		check_status(gfd);
-		sleep(1);
+		sleep(post_seconds);
     	}
 
 	mosquitto_disconnect(mosqg);
@@ -312,4 +345,13 @@ int main()
 	mosquitto_lib_cleanup();
 	
 	close(gfd);	
+
+	free(locker_name);
+	free(broker_user);
+	free(broker_pass);
+	free(broker_url);
+	free(ca_cert);
+	free(ca_path);
+	free(serial_port);
+	free(pid_file);
 }
