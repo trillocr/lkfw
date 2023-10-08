@@ -6,9 +6,9 @@ Type=simple
 User=root
 Group=root
 PIDFile=/tmp/lkfw.pid
-ExecStart=/home/user/lkfw/lkfw
+ExecStart=/opt/lkfw/lkfw
 Restart=no
-WorkingDirectory=/home/user/lkfw
+WorkingDirectory=/opt/lkfw
 Nice=0
 LimitNOFILE=16384
  
