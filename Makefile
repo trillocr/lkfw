@@ -15,3 +15,6 @@ install:
 	rm -f /usr/lib/systemd/system/lkfw.service && cp lkfw.service /usr/lib/systemd/system/lkfw.service
 	systemctl daemon-reload
 	systemctl restart monit
+
+prepare:
+	./install_required.sh
