@@ -4,9 +4,8 @@ This is a simple interface to connect a Kerong board, to the Cloud via MQTT brok
 
 * Before anything, please edit `lkfw.conf` according to your environment.
 
-----
+```
 sudo make prepare
 sudo make all
 sudo make install
----
-
+```
