@@ -1,0 +1,22 @@
+# Also the name of the tenant, is used as the prefix for the topics 
+# cmd - The command to open 
+# event - Details of received and executed commands
+# status - Telemetry about locker status
+locker_name	=	"locker_tenant_prefix"
+
+# MQTT Broker related settings
+broker_port	=	8883 
+broker_user	=	"broker_user"
+broker_pass	=	"broker_pass"
+keep_alive	= 	10
+post_seconds	=	1
+broker_url	=	"broker.url.domain.com"
+
+# TLS 
+ca_cert		=	"lkfw.pem"
+ca_path		=	"/opt/lkfw/"
+
+# Serial and pidfile
+serial_port	=	"/dev/ttyUSB0"
+pid_file	=	"/tmp/lkfw.pid"
+

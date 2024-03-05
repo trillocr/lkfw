@@ -1,0 +1,9 @@
+*.o
+*.conf
+
+# !*.c
+# !Makefile
+# !lkfw.service
+# !*.pem
+# !*.h
+# !*.sh
