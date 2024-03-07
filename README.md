@@ -5,7 +5,8 @@ This is a simple interface to connect a Kerong control board, to the Cloud via M
 * Before anything, please copy `lkfw.conf.example to `lkfw.conf` and edit according to your environment.
 
 ```
-sudo make prepare
+cd lkfw/
+sudo ./install_required.sh 
 sudo make all
 sudo make install
 ```
