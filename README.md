@@ -10,3 +10,11 @@ sudo ./install_required.sh
 sudo make all
 sudo make install
 ```
+
+To uninstall, please issue:
+
+```
+cd lkfw/
+sudo ./uninstall.sh
+```
+
